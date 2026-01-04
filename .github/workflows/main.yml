@@ -13,6 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      # Чистим диск
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -20,39 +21,23 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: Setup Java 17
+      # Ставим Java 17
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
+      # Ставим системные зависимости
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3-pip \
-            build-essential \
-            git \
-            python3 \
-            python3-dev \
-            zip \
-            unzip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            gettext \
-            autopoint \
-            libltdl-dev \
-            wget
+            python3-pip build-essential git python3 python3-dev zip unzip \
+            autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # Скачиваем Ant вручную (фикс ошибки сети)
+      # Фикс сети для Ant
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
@@ -60,64 +45,77 @@ jobs:
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
-      - name: Install Buildozer and Cython
+      # Ставим Buildozer
+      - name: Install Buildozer
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
           pip3 install --user "cython<3.0.0"
 
-      - name: Init Buildozer
-        run: /home/runner/.local/bin/buildozer init
-
-      - name: Configure Buildozer.spec
+      # --- МАГИЯ: ГЕНЕРИРУЕМ ПРАВИЛЬНЫЙ BUILDOZER.SPEC С НУЛЯ ---
+      # Это гарантирует, что иконка и настройки применятся
+      - name: Create buildozer.spec
         run: |
-          # 1. Названия
-          sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
-          sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
-          sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
+          cat <<EOT > buildozer.spec
+          [app]
+          title = Arsyusha Clicker
+          package.name = arsyusha
+          package.domain = org.arsyusha
           
-          # 2. ИКОНКА (Указываем путь к icon.png)
-          # Раскомментируем строку и указываем файл
-          sed -i 's/# icon.filename = %(source.dir)s\/data\/icon.png/icon.filename = %(source.dir)s\/icon.png/' buildozer.spec
+          # Указываем ВСЕ расширения файлов
+          source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           
-          # 3. Файлы (добавляем mp3 и png для иконки)
-          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3/' buildozer.spec
+          # Папка с исходниками (текущая)
+          source.dir = .
           
-          # 4. Библиотеки
-          sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
+          # Версия
+          version = 1.0
           
-          # 5. ГЛАВНЫЙ ФИКС ВЫЛЕТА: Разрешаем HTTP (Cleartext Traffic)
-          # Android блокирует Flask без этой настройки
-          sed -i 's/# android.manifest.application_attributes =/android.manifest.application_attributes = android:usesCleartextTraffic="true"/' buildozer.spec
+          # ТРЕБОВАНИЯ (Добавил sqlite3, openssl, libffi - чтобы не вылетало)
+          requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi
           
-          # 6. Права
-          sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE/' buildozer.spec
+          # ИКОНКА И ЗАСТАВКА
+          icon.filename = icon.png
+          presplash.filename = icon.png
           
-          # 7. Ориентация
-          sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
+          # Ориентация
+          orientation = portrait
+          fullscreen = 1
           
-          # 8. Архитектура
-          sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
+          # ЦВЕТ ЗАСТАВКИ (Голубой, как в игре)
+          android.presplash_color = #00C6FF
           
-          # 9. API
-          sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
-          sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
+          # API Android
+          android.api = 33
+          android.minapi = 21
           
-          # 10. Заставка (Пытаемся использовать твою иконку или просто цвет)
-          sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
-          # Если хочешь, чтобы при загрузке была картинка, раскомментируй это:
-          # sed -i 's/# android.presplash.filename = %(source.dir)s\/data\/presplash.png/android.presplash.filename = %(source.dir)s\/icon.png/' buildozer.spec
+          # РАЗРЕШЕНИЯ (Важно для сети и файлов)
+          android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
           
-          # 11. Лицензии и логи
-          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
-          sed -i 's/log_level = 1/log_level = 2/' buildozer.spec
+          # ФИКС БЕЛОГО ЭКРАНА (Разрешаем HTTP)
+          android.manifest.application_attributes = android:usesCleartextTraffic="true"
+          
+          # Архитектуры
+          android.archs = arm64-v8a, armeabi-v7a
+          
+          # Разрешаем бэкап
+          android.allow_backup = True
+          
+          # Kivy настройки (скрываем лишнее)
+          p4a.branch = master
+          
+          [buildozer]
+          log_level = 2
+          warn_on_root = 1
+          EOT
 
       - name: Build APK
         run: |
-          /home/runner/.local/bin/buildozer -y android debug
+          # Авто-принятие лицензий через yes
+          yes | /home/runner/.local/bin/buildozer android debug
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-APK
+          name: Arsyusha-APK-Fixed
           path: bin/*.apk
