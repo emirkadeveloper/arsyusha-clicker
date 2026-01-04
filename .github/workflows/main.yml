@@ -34,15 +34,11 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # --- ТОТ САМЫЙ МЕТОД, КОТОРЫЙ РАБОТАЛ ---
+      # --- ТОТ САМЫЙ WGET (С официального архива) ---
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          echo "Downloading with WGET forced IPv4..."
-          # -4 = IPv4
-          # --no-check-certificate = игнор SSL
-          # --tries=10 = долбиться 10 раз
-          # --timeout=60 = ждать ответа 60 сек
+          # Агрессивные флаги: IPv4, игнор SSL, таймаут, повторы
           wget -4 --no-check-certificate --tries=10 --waitretry=10 --timeout=60 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
@@ -64,8 +60,8 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # ПОЛНЫЙ НАБОР ЗАВИСИМОСТЕЙ (ВКЛЮЧАЯ SIX И PROXY_TOOLS)
-          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools,six
+          # ПОЛНЫЙ НАБОР (ФИКС ВЫЛЕТОВ ПРИ СТАРТЕ)
+          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools,six,charset-normalizer
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -77,13 +73,16 @@ jobs:
           android.api = 33
           android.minapi = 21
           
+          # РАЗРЕШЕНИЯ (Internet + WAKE_LOCK)
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE,WAKE_LOCK,FOREGROUND_SERVICE
           
-          # ГРАФИКА И СЕТЬ (ВАЖНО ДЛЯ WEBVIEW)
+          # ГРАФИКА И СЕТЬ (БЕЗ ЭТОГО WEBVIEW КРАШИТСЯ)
           android.manifest.application_attributes = android:usesCleartextTraffic="true" android:hardwareAccelerated="true"
           
+          # WEBVIEW ЗАВИСИМОСТИ
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
+          android.meta_data = android.webkit.WebView.EnableSafeBrowsing=true
           
           android.archs = arm64-v8a, armeabi-v7a
           android.allow_backup = True
@@ -100,5 +99,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-APK-Working
+          name: Arsyusha-APK-WGET-FIX
           path: bin/*.apk
