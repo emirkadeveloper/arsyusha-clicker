@@ -20,7 +20,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
@@ -52,22 +52,13 @@ jobs:
             libltdl-dev \
             wget
 
-      # --- НОВЫЙ ШАГ: Скачиваем Ant вручную, чтобы Buildozer не тупил ---
-      - name: Pre-install Apache Ant (Fix Network Error)
+      # Скачиваем Ant вручную (фикс ошибки сети)
+      - name: Pre-install Apache Ant
         run: |
-          # Создаем папку, где Buildozer ищет компоненты
           mkdir -p ~/.buildozer/android/platform/
-          
-          # Скачиваем Ant через wget (это надежнее)
           wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
-          
-          # Распаковываем
           tar -xzf apache-ant-1.9.4-bin.tar.gz
-          
-          # Перемещаем в нужную папку
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
-          
-          echo "Apache Ant installed manually!"
 
       - name: Install Buildozer and Cython
         run: |
@@ -80,23 +71,49 @@ jobs:
 
       - name: Configure Buildozer.spec
         run: |
+          # 1. Названия
           sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
+          
+          # 2. ИКОНКА (Указываем путь к icon.png)
+          # Раскомментируем строку и указываем файл
+          sed -i 's/# icon.filename = %(source.dir)s\/data\/icon.png/icon.filename = %(source.dir)s\/icon.png/' buildozer.spec
+          
+          # 3. Файлы (добавляем mp3 и png для иконки)
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3/' buildozer.spec
+          
+          # 4. Библиотеки
           sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
-          sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
+          
+          # 5. ГЛАВНЫЙ ФИКС ВЫЛЕТА: Разрешаем HTTP (Cleartext Traffic)
+          # Android блокирует Flask без этой настройки
+          sed -i 's/# android.manifest.application_attributes =/android.manifest.application_attributes = android:usesCleartextTraffic="true"/' buildozer.spec
+          
+          # 6. Права
+          sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE/' buildozer.spec
+          
+          # 7. Ориентация
           sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
+          
+          # 8. Архитектура
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
+          
+          # 9. API
           sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
           sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
+          
+          # 10. Заставка (Пытаемся использовать твою иконку или просто цвет)
           sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
+          # Если хочешь, чтобы при загрузке была картинка, раскомментируй это:
+          # sed -i 's/# android.presplash.filename = %(source.dir)s\/data\/presplash.png/android.presplash.filename = %(source.dir)s\/icon.png/' buildozer.spec
+          
+          # 11. Лицензии и логи
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
           sed -i 's/log_level = 1/log_level = 2/' buildozer.spec
 
       - name: Build APK
         run: |
-          # Добавляем флаг -y, чтобы автоматически отвечать 'yes' на вопросы
           /home/runner/.local/bin/buildozer -y android debug
 
       - name: Upload Artifact
