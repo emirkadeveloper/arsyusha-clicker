@@ -6,7 +6,8 @@ import sys
 import webview
 from flask import Flask, render_template, jsonify, request
 
-# --- 1. ПРАВИЛЬНЫЕ ПУТИ ДЛЯ ANDROID (БЕЗ ЭТОГО ВЫЛЕТИТ!) ---
+# --- ВАЖНО: ОПРЕДЕЛЕНИЕ ПУТИ ДЛЯ ANDROID ---
+# Без этого Flask не найдет папку templates и приложение вылетит
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 elif __file__:
@@ -17,9 +18,7 @@ else:
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
-# --- 2. ПУТЬ К СОХРАНЕНИЮ ---
 def get_save_path():
-    # Если мы на Андроиде, используем приватное хранилище
     if 'ANDROID_ARGUMENT' in os.environ:
         from android.storage import app_storage_path
         storage = app_storage_path()
@@ -30,10 +29,10 @@ def get_save_path():
 
 SAVE_FILE = get_save_path()
 
-# Инициализируем Flask с ЯВНЫМИ путями
+# Явно указываем папки
 app = Flask(__name__, static_folder=STATIC_DIR, template_folder=TEMPLATE_DIR)
 
-# --- ДАЛЬШЕ ТВОЙ КОД ИГРЫ (ОСТАВЛЯЕМ КАК ЕСТЬ) ---
+# --- ДАЛЬШЕ ТВОЙ КОД ИГРЫ ---
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -199,22 +198,19 @@ def close_intro():
     save_game()
     return jsonify({"success": True})
 
-# --- ЗАПУСК ---
 if __name__ == '__main__':
     t_farm = threading.Thread(target=auto_farm_loop, daemon=True)
     t_farm.start()
     
-    # Запускаем Flask на 0.0.0.0
+    # 0.0.0.0 обязательно!
     t_flask = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
     
-    # Ждем 3 секунды, чтобы Flask точно запустился перед WebView
-    time.sleep(3)
+    time.sleep(3) # Ждем 3 секунды
     
     try:
-        # Убраны параметры размера, чтобы не смущать Android
+        # background_color совпадает с цветом заставки (presplash)
         webview.create_window("Arsyusha Tycoon", "http://127.0.0.1:5000", background_color='#00C6FF')
         webview.start()
     except Exception as e:
-        # Если Webview упадет, мы хотя бы увидим это в логах, а не просто краш
-        print(f"WEBVIEW CRASHED: {e}")
+        print(f"WEBVIEW ERROR: {e}")
