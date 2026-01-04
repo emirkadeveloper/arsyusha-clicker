@@ -1,13 +1,11 @@
 import threading
-import time
 import json
 import os
 import sys
 import webview
 from flask import Flask, render_template, jsonify, request
 
-# --- ВАЖНО: ОПРЕДЕЛЕНИЕ ПУТИ ДЛЯ ANDROID ---
-# Без этого Flask не найдет папку templates и приложение вылетит
+# --- ПУТИ (КРИТИЧНО) ---
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 elif __file__:
@@ -29,30 +27,18 @@ def get_save_path():
 
 SAVE_FILE = get_save_path()
 
-# Явно указываем папки
 app = Flask(__name__, static_folder=STATIC_DIR, template_folder=TEMPLATE_DIR)
 
-# --- ДАЛЬШЕ ТВОЙ КОД ИГРЫ ---
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+# --- ГЕНЕРАЦИЯ ---
 def generate_default_state():
     workers = {}
     upgrades = {}
     boosters = {}
-    worker_names = [
-        "Муравей-грузчик", "Таракан-стажер", "Хомяк в колесе", "Кот-лапкой-тык", "Школьник",
-        "Студент", "Дворник", "Офисный планктон", "Менеджер", "Директор",
-        "Депутат", "Мэр", "Президент", "Илон Маск", "ИИ Скайнет",
-        "Ботнет", "Серверная", "Дата-центр", "Крипто-ферма", "АЭС",
-        "Ветряк", "Дамба", "Вулкан", "Тектоника", "Ядро Земли",
-        "Луна-парк", "Марсоход", "Сфера Дайсона", "Звезда Смерти", "Черная дыра",
-        "Квазар", "Галактика", "Скопление", "Вселенная", "Мультивселенная",
-        "Бог кликов", "Кодер Python", "Баг системы", "Глитч", "Матрица",
-        "Архитектор", "Агент Смит", "Нео", "Тринити", "Морфеус",
-        "Оракул", "Зион", "Реальность", "Абсолют", "THE END"
-    ]
+    worker_names = ["Муравей", "Таракан", "Хомяк", "Кот", "Школьник", "Студент", "Дворник", "Менеджер", "Директор", "Депутат", "Мэр", "Президент", "Илон Маск", "Скайнет", "Ботнет", "Серверная", "Дата-центр", "Крипто-ферма", "АЭС", "Ветряк", "Дамба", "Вулкан", "Тектоника", "Ядро", "Луна-парк", "Марсоход", "Сфера Дайсона", "Звезда Смерти", "Черная дыра", "Квазар", "Галактика", "Скопление", "Вселенная", "Мультивселенная", "Бог", "Кодер", "Баг", "Глитч", "Матрица", "Архитектор", "Агент", "Нео", "Тринити", "Морфеус", "Оракул", "Зион", "Реальность", "Абсолют", "THE END", "FINAL"]
     base_cost = 15
     base_cps = 0.5
     for i in range(50):
@@ -76,18 +62,7 @@ def generate_default_state():
             current_cost = int(current_cost * 1.40)
             count += 1
 
-    booster_types = [
-        {"name": "Кофе-брейк", "mult": 2, "dur": 30, "cost": 500},
-        {"name": "Энергетик", "mult": 3, "dur": 25, "cost": 2500},
-        {"name": "Турбо-режим", "mult": 5, "dur": 20, "cost": 10000},
-        {"name": "Хакерская атака", "mult": 10, "dur": 15, "cost": 50000},
-        {"name": "Оверклокинг", "mult": 15, "dur": 15, "cost": 150000},
-        {"name": "Квантовый скачок", "mult": 20, "dur": 10, "cost": 500000},
-        {"name": "Искривление", "mult": 50, "dur": 10, "cost": 2000000},
-        {"name": "Матрица", "mult": 100, "dur": 5, "cost": 10000000},
-        {"name": "Щелчок Таноса", "mult": 500, "dur": 5, "cost": 100000000},
-        {"name": "BIG BANG", "mult": 1000, "dur": 5, "cost": 1000000000},
-    ]
+    booster_types = [{"name": "Кофе", "mult": 2, "dur": 30, "cost": 500}, {"name": "Энергетик", "mult": 3, "dur": 25, "cost": 2500}, {"name": "Турбо", "mult": 5, "dur": 20, "cost": 10000}, {"name": "Хакер", "mult": 10, "dur": 15, "cost": 50000}, {"name": "Оверклок", "mult": 15, "dur": 15, "cost": 150000}, {"name": "Квант", "mult": 20, "dur": 10, "cost": 500000}, {"name": "Искривление", "mult": 50, "dur": 10, "cost": 2000000}, {"name": "Матрица", "mult": 100, "dur": 5, "cost": 10000000}, {"name": "Танос", "mult": 500, "dur": 5, "cost": 100000000}, {"name": "BIG BANG", "mult": 1000, "dur": 5, "cost": 1000000000}]
     for i, b in enumerate(booster_types):
         b_id = f"booster_{i}"
         boosters[b_id] = {"id": b_id, "name": b["name"], "cost": b["cost"], "multiplier": b["mult"], "duration": b["dur"], "active_until": 0, "order": i}
@@ -198,19 +173,17 @@ def close_intro():
     save_game()
     return jsonify({"success": True})
 
+# --- ЗАПУСК БЕЗ ЗАДЕРЖКИ (ФИКС ВЫЛЕТА) ---
 if __name__ == '__main__':
     t_farm = threading.Thread(target=auto_farm_loop, daemon=True)
     t_farm.start()
     
-    # 0.0.0.0 обязательно!
     t_flask = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
     
-    time.sleep(3) # Ждем 3 секунды
-    
+    # НИКАКОГО time.sleep()! Это вешает Android.
     try:
-        # background_color совпадает с цветом заставки (presplash)
         webview.create_window("Arsyusha Tycoon", "http://127.0.0.1:5000", background_color='#00C6FF')
         webview.start()
     except Exception as e:
-        print(f"WEBVIEW ERROR: {e}")
+        print(e)
