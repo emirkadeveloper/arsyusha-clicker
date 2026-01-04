@@ -1,0 +1,1 @@
+# arsyusha-clicker
