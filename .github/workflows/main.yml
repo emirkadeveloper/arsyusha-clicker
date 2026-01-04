@@ -34,10 +34,12 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
+      # --- ИСПРАВЛЕНИЕ: Скачиваем Ant с быстрого зеркала (Maven Central) ---
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          # Используем надежное зеркало Maven вместо archive.apache.org
+          wget https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
@@ -58,8 +60,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 1: Вернули kivy и pyjnius (нужны для старта)
-          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 2: Добавили certifi и chardet (нужны для Flask)
+          # ЗАВИСИМОСТИ (Kivy, Flask, Webview, AndroidX и системные либы для стабильности)
           requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests
           
           # Иконка
@@ -77,10 +78,10 @@ jobs:
           # Разрешения
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
           
-          # Разрешаем HTTP
+          # Разрешаем HTTP (Важно!)
           android.manifest.application_attributes = android:usesCleartextTraffic="true"
           
-          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 3: Включаем AndroidX и Webkit (нужно для WebView)
+          # AndroidX и Webkit (Важно для WebView!)
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
           
@@ -99,5 +100,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-Final-APK
+          name: Arsyusha-APK
           path: bin/*.apk
