@@ -13,7 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # 1. Очистка диска
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -21,14 +20,12 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 2. Установка Java 17 (Принудительно)
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Установка системных зависимостей (Добавил gettext и autopoint)
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -52,61 +49,56 @@ jobs:
             libssl-dev \
             gettext \
             autopoint \
-            libltdl-dev
+            libltdl-dev \
+            wget
 
-      # 4. Установка Buildozer и Cython
+      # --- НОВЫЙ ШАГ: Скачиваем Ant вручную, чтобы Buildozer не тупил ---
+      - name: Pre-install Apache Ant (Fix Network Error)
+        run: |
+          # Создаем папку, где Buildozer ищет компоненты
+          mkdir -p ~/.buildozer/android/platform/
+          
+          # Скачиваем Ant через wget (это надежнее)
+          wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          
+          # Распаковываем
+          tar -xzf apache-ant-1.9.4-bin.tar.gz
+          
+          # Перемещаем в нужную папку
+          mv apache-ant-1.9.4 ~/.buildozer/android/platform/
+          
+          echo "Apache Ant installed manually!"
+
       - name: Install Buildozer and Cython
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
-          # Cython старой версии критически важен
           pip3 install --user "cython<3.0.0"
 
-      # 5. Инициализация
       - name: Init Buildozer
         run: /home/runner/.local/bin/buildozer init
 
-      # 6. Настройка buildozer.spec
       - name: Configure Buildozer.spec
         run: |
           sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
-          
-          # Файлы (добавляем mp3)
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3/' buildozer.spec
-          
-          # Библиотеки
           sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
-          
-          # Права
           sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
-          
-          # Ориентация
           sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
-          
-          # Архитектура
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
-          
-          # API
           sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
           sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
-          
-          # Визуал
           sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
-          
-          # Логи (ставим 2, чтобы видеть реальную ошибку, если упадет)
-          sed -i 's/log_level = 1/log_level = 2/' buildozer.spec
-          
-          # Лицензии
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+          sed -i 's/log_level = 1/log_level = 2/' buildozer.spec
 
-      # 7. Сборка (Добавил флаг -y и убрал yes |, чтобы не ломать пайп)
       - name: Build APK
         run: |
+          # Добавляем флаг -y, чтобы автоматически отвечать 'yes' на вопросы
           /home/runner/.local/bin/buildozer -y android debug
 
-      # 8. Загрузка результата
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
