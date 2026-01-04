@@ -34,14 +34,18 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # --- НОВАЯ ССЫЛКА НА ANT (С архивов Debian, всегда работает) ---
+      # --- ТОТ САМЫЙ МЕТОД, КОТОРЫЙ РАБОТАЛ ---
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          wget http://ftp.debian.org/debian/pool/main/a/apache-ant/apache-ant_1.9.16.orig.tar.xz
-          tar -xf apache-ant_1.9.16.orig.tar.xz
-          # Переименовываем папку, чтобы Buildozer ее нашел (он ищет 1.9.4, мы подсунем 1.9.16)
-          mv apache-ant-1.9.16 ~/.buildozer/android/platform/apache-ant-1.9.4
+          echo "Downloading with WGET forced IPv4..."
+          # -4 = IPv4
+          # --no-check-certificate = игнор SSL
+          # --tries=10 = долбиться 10 раз
+          # --timeout=60 = ждать ответа 60 сек
+          wget -4 --no-check-certificate --tries=10 --waitretry=10 --timeout=60 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          tar -xzf apache-ant-1.9.4-bin.tar.gz
+          mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
       - name: Install Buildozer
         run: |
@@ -60,7 +64,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # МАКСИМАЛЬНЫЙ НАБОР БИБЛИОТЕК
+          # ПОЛНЫЙ НАБОР ЗАВИСИМОСТЕЙ (ВКЛЮЧАЯ SIX И PROXY_TOOLS)
           requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools,six
           
           icon.filename = icon.png
@@ -75,13 +79,12 @@ jobs:
           
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE,WAKE_LOCK,FOREGROUND_SERVICE
           
-          # ANTI-CRASH SETTINGS
+          # ГРАФИКА И СЕТЬ (ВАЖНО ДЛЯ WEBVIEW)
           android.manifest.application_attributes = android:usesCleartextTraffic="true" android:hardwareAccelerated="true"
           
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
           
-          android.meta_data = android.webkit.WebView.EnableSafeBrowsing=true
           android.archs = arm64-v8a, armeabi-v7a
           android.allow_backup = True
           
