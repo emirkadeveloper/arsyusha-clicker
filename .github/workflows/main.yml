@@ -7,14 +7,13 @@ on:
 
 jobs:
   build:
-    # ИСПОЛЬЗУЕМ UBUNTU 22.04 (Самая стабильная для Buildozer сейчас)
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Очистка диска (чтобы хватило места)
+      # 1. Очистка диска
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -22,7 +21,14 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # Установка зависимостей (Облегченная версия без видео-библиотек)
+      # 2. Установка Java 17 (Принудительно)
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Установка системных зависимостей (Добавил gettext и autopoint)
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -34,7 +40,6 @@ jobs:
             python3-dev \
             zip \
             unzip \
-            openjdk-17-jdk \
             autoconf \
             libtool \
             pkg-config \
@@ -44,55 +49,64 @@ jobs:
             libtinfo5 \
             cmake \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            gettext \
+            autopoint \
+            libltdl-dev
 
+      # 4. Установка Buildozer и Cython
       - name: Install Buildozer and Cython
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
-          # Cython старой версии обязателен для Kivy
+          # Cython старой версии критически важен
           pip3 install --user "cython<3.0.0"
 
+      # 5. Инициализация
       - name: Init Buildozer
         run: /home/runner/.local/bin/buildozer init
 
+      # 6. Настройка buildozer.spec
       - name: Configure Buildozer.spec
         run: |
-          # 1. Название и пакет
           sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
           
-          # 2. Файлы (ВКЛЮЧАЯ MP3 !!!)
+          # Файлы (добавляем mp3)
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3/' buildozer.spec
           
-          # 3. Библиотеки (Flask стэк)
+          # Библиотеки
           sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
           
-          # 4. Разрешения (Память для сохранений)
+          # Права
           sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
           
-          # 5. Ориентация
+          # Ориентация
           sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
           
-          # 6. Архитектура
+          # Архитектура
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
           
-          # 7. API (Совместимость)
+          # API
           sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
           sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
           
-          # 8. Сплэш-скрин (Синий фон при запуске)
+          # Визуал
           sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
           
-          # 9. Лицензии
+          # Логи (ставим 2, чтобы видеть реальную ошибку, если упадет)
+          sed -i 's/log_level = 1/log_level = 2/' buildozer.spec
+          
+          # Лицензии
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
 
+      # 7. Сборка (Добавил флаг -y и убрал yes |, чтобы не ломать пайп)
       - name: Build APK
         run: |
-          # yes | подтверждает лицензии SDK
-          yes | /home/runner/.local/bin/buildozer android debug
+          /home/runner/.local/bin/buildozer -y android debug
 
+      # 8. Загрузка результата
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
