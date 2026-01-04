@@ -1,0 +1,84 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip \
+            build-essential \
+            git \
+            python3 \
+            python3-dev \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            libgstreamer1.0 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good
+          
+          # Обновляем pip и ставим buildozer
+          pip3 install --upgrade pip
+          pip3 install buildozer cython==0.29.33
+
+      - name: Init Buildozer
+        run: buildozer init
+
+      - name: Configure Buildozer.spec
+        run: |
+          # Используем sed для замены настроек в файле
+          sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
+          sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
+          sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
+          
+          # Добавляем файлы
+          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json/' buildozer.spec
+          
+          # Зависимости Flask + Webview
+          sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
+          
+          # Права
+          sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
+          
+          # Ориентация
+          sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
+          
+          # Архитектура (для всех телефонов)
+          sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
+          
+          # API Level
+          sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
+          sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
+          
+          # Цвет фона
+          sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
+
+      - name: Build APK
+        run: |
+          # yes | нужен, чтобы автоматически соглашаться с лицензиями
+          yes | buildozer android debug
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arsyusha-APK
+          path: bin/*.apk
