@@ -34,13 +34,11 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # --- ИСПРАВЛЕНИЕ: Качаем Ant с флагом -4 (IPv4) и повторами ---
+      # Качаем Ant с надежного зеркала
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          # -4 принуждает использовать IPv4 (решает Network unreachable)
-          # --tries=5 делает 5 попыток, если сервер тупит
-          wget -4 --tries=5 --waitretry=10 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          wget https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
@@ -61,8 +59,9 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # ПОЛНЫЙ СПИСОК ЗАВИСИМОСТЕЙ ПРОТИВ ВЫЛЕТОВ
-          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests
+          # === ФИНАЛЬНЫЙ СПИСОК ЗАВИСИМОСТЕЙ ===
+          # Добавлены proxy_tools, idna, typing_extensions чтобы исправить краш
+          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools
           
           # Иконка
           icon.filename = icon.png
@@ -76,15 +75,18 @@ jobs:
           android.api = 33
           android.minapi = 21
           
-          # Разрешения
-          android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
+          # === РАЗРЕШЕНИЯ (Добавлен WAKE_LOCK от вылетов при старте) ===
+          android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE,WAKE_LOCK,FOREGROUND_SERVICE
           
           # Разрешаем HTTP
           android.manifest.application_attributes = android:usesCleartextTraffic="true"
           
-          # AndroidX для WebView
+          # AndroidX и Webkit
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
+          
+          # Метаданные для стабильности WebView
+          android.meta_data = android.webkit.WebView.EnableSafeBrowsing=true
           
           android.archs = arm64-v8a, armeabi-v7a
           android.allow_backup = True
@@ -101,5 +103,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-APK-Final
+          name: Arsyusha-Fix-Crash
           path: bin/*.apk
