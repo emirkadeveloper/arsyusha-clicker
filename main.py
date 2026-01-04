@@ -250,7 +250,8 @@ if __name__ == '__main__':
     
     t_flask = threading.Thread(target=lambda: app.run(host='127.0.0.1', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
-    time.sleep(1)
+    time.sleep(2)
     
     webview.create_window("Арсюша Кликер", "http://127.0.0.1:5000", width=420, height=840, resizable=False, background_color='#00C6FF')
+
     webview.start()
