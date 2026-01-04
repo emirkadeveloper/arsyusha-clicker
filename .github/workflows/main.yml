@@ -7,14 +7,14 @@ on:
 
 jobs:
   build:
-    # ИСПОЛЬЗУЕМ 22.04, ТАК КАК НА НОВОЙ ВЕРСИИ PYTHON 3.12 ЛОМАЕТ СБОРКУ
+    # ИСПОЛЬЗУЕМ UBUNTU 22.04 (Самая стабильная для Buildozer сейчас)
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Освобождаем место на диске (Buildozer ест много места)
+      # Очистка диска (чтобы хватило места)
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -22,6 +22,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
+      # Установка зависимостей (Облегченная версия без видео-библиотек)
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -31,55 +32,65 @@ jobs:
             git \
             python3 \
             python3-dev \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev \
-            libgstreamer1.0 \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            libffi-dev \
-            libssl-dev \
+            zip \
+            unzip \
+            openjdk-17-jdk \
             autoconf \
             libtool \
-            openjdk-17-jdk
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev
 
       - name: Install Buildozer and Cython
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
-          # Ставим Cython версии совместимой с Kivy
-          pip3 install --user "cython<3.0.0" 
+          # Cython старой версии обязателен для Kivy
+          pip3 install --user "cython<3.0.0"
 
       - name: Init Buildozer
         run: /home/runner/.local/bin/buildozer init
 
       - name: Configure Buildozer.spec
         run: |
+          # 1. Название и пакет
           sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
-          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json/' buildozer.spec
+          
+          # 2. Файлы (ВКЛЮЧАЯ MP3 !!!)
+          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3/' buildozer.spec
+          
+          # 3. Библиотеки (Flask стэк)
           sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
+          
+          # 4. Разрешения (Память для сохранений)
           sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
+          
+          # 5. Ориентация
           sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
+          
+          # 6. Архитектура
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
-          # Важно: понижаем API для совместимости со старыми Buildozer recipes
+          
+          # 7. API (Совместимость)
           sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
           sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
+          
+          # 8. Сплэш-скрин (Синий фон при запуске)
           sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
-          # Фикс для принятия лицензий
+          
+          # 9. Лицензии
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
 
       - name: Build APK
         run: |
-          # Используем yes для согласия с лицензиями SDK
+          # yes | подтверждает лицензии SDK
           yes | /home/runner/.local/bin/buildozer android debug
 
       - name: Upload Artifact
