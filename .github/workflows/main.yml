@@ -7,11 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ИСПОЛЬЗУЕМ 22.04, ТАК КАК НА НОВОЙ ВЕРСИИ PYTHON 3.12 ЛОМАЕТ СБОРКУ
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      # Освобождаем место на диске (Buildozer ест много места)
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - name: Install dependencies
         run: |
@@ -34,48 +43,44 @@ jobs:
             zlib1g-dev \
             libgstreamer1.0 \
             gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good
-          
-          # Обновляем pip и ставим buildozer
+            gstreamer1.0-plugins-good \
+            libffi-dev \
+            libssl-dev \
+            autoconf \
+            libtool \
+            openjdk-17-jdk
+
+      - name: Install Buildozer and Cython
+        run: |
           pip3 install --upgrade pip
-          pip3 install buildozer cython==0.29.33
+          pip3 install --user --upgrade buildozer
+          # Ставим Cython версии совместимой с Kivy
+          pip3 install --user "cython<3.0.0" 
 
       - name: Init Buildozer
-        run: buildozer init
+        run: /home/runner/.local/bin/buildozer init
 
       - name: Configure Buildozer.spec
         run: |
-          # Используем sed для замены настроек в файле
           sed -i 's/title = My Application/title = Arsyusha Clicker/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = arsyusha/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.arsyusha/' buildozer.spec
-          
-          # Добавляем файлы
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,html,css,js,json/' buildozer.spec
-          
-          # Зависимости Flask + Webview
           sed -i 's/requirements = python3,kivy/requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click/' buildozer.spec
-          
-          # Права
           sed -i 's/android.permissions = INTERNET/android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE/' buildozer.spec
-          
-          # Ориентация
           sed -i 's/orientation = portrait/orientation = portrait/' buildozer.spec
-          
-          # Архитектура (для всех телефонов)
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a, armeabi-v7a/' buildozer.spec
-          
-          # API Level
+          # Важно: понижаем API для совместимости со старыми Buildozer recipes
           sed -i 's/android.api = 27/android.api = 33/' buildozer.spec
           sed -i 's/android.minapi = 21/android.minapi = 21/' buildozer.spec
-          
-          # Цвет фона
           sed -i 's/android.presplash_color = #000000/android.presplash_color = #00C6FF/' buildozer.spec
+          # Фикс для принятия лицензий
+          sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
 
       - name: Build APK
         run: |
-          # yes | нужен, чтобы автоматически соглашаться с лицензиями
-          yes | buildozer android debug
+          # Используем yes для согласия с лицензиями SDK
+          yes | /home/runner/.local/bin/buildozer android debug
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
