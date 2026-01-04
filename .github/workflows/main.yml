@@ -34,10 +34,18 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
+      # --- ТОТ САМЫЙ АГРЕССИВНЫЙ МЕТОД СКАЧИВАНИЯ ---
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          wget https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
+          echo "Attempting to download Apache Ant with aggressive settings..."
+          # -4: Только IPv4 (решает Network unreachable)
+          # --no-check-certificate: Игнорировать ошибки SSL
+          # --timeout=60: Ждать ответа дольше
+          # --tries=10: Пробовать 10 раз
+          wget -4 --no-check-certificate --tries=10 --waitretry=10 --timeout=60 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          
+          # Распаковка
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
@@ -51,15 +59,16 @@ jobs:
         run: |
           cat <<EOT > buildozer.spec
           [app]
-          title = Арсюша Кликер
+          title = Arsyusha Clicker
           package.name = arsyusha
           package.domain = org.arsyusha
           source.dir = .
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # УБРАЛИ ЛИШНЕЕ, ОСТАВИЛИ ТОЛЬКО НЕОБХОДИМОЕ
-          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools
+          # === ЗАВИСИМОСТИ ПРОТИВ ВЫЛЕТОВ ===
+          # Добавлены six, chardet, idna, proxy_tools - это аптечка от крашей
+          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools,six
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -71,13 +80,15 @@ jobs:
           android.api = 33
           android.minapi = 21
           
+          # === РАЗРЕШЕНИЯ (WAKE_LOCK и FOREGROUND нужны чтобы Flask успел запуститься) ===
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE,WAKE_LOCK,FOREGROUND_SERVICE
           
-          # === ГЛАВНЫЙ ФИКС ВЫЛЕТА WEBVIEW ===
-          # 1. Аппаратное ускорение (обязательно для WebView)
-          # 2. Cleartext (для HTTP)
+          # === ГЛАВНЫЙ ФИКС ВЫЛЕТА ===
+          # hardwareAccelerated="true" - Обязательно для WebView
+          # usesCleartextTraffic="true" - Обязательно для Flask (http)
           android.manifest.application_attributes = android:usesCleartextTraffic="true" android:hardwareAccelerated="true"
           
+          # Включаем современные библиотеки Android
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
           
@@ -96,5 +107,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-APK-Final-V2
+          name: Arsyusha-APK-Aggressive
           path: bin/*.apk
