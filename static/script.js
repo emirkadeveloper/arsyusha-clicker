@@ -1,11 +1,66 @@
 let state = {};
 
+// --- ЗВУКОВАЯ СИСТЕМА ---
+const audio = {
+    click: new Audio('/static/click.mp3'),
+    buy: new Audio('/static/buy.mp3'),
+    booster: new Audio('/static/booster.mp3'),
+    music: new Audio('/static/music.mp3')
+};
+
+// Настройка звуков
+for (let key in audio) {
+    if (key === 'music') {
+        audio[key].volume = 0.2; // Музыка тихая
+        audio[key].loop = true;  // Зацикливание
+    } else {
+        audio[key].volume = 0.5;
+    }
+    // Важно: на мобилках load() иногда не работает без клика, но мы попробуем
+    audio[key].load(); 
+}
+
+// Функция для быстрого воспроизведения
+function playSound(name) {
+    const sound = audio[name];
+    if (sound) {
+        const clone = sound.cloneNode(); 
+        clone.volume = (name === 'click') ? 0.3 : 0.5; 
+        clone.play().catch(e => {}); // Игнорим ошибки если спам кликов
+    }
+}
+
+// Умный запуск музыки
+function startMusic() {
+    // Если музыка уже играет, ничего не делаем
+    if (audio.music && !audio.music.paused) return;
+
+    if (audio.music) {
+        const playPromise = audio.music.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                console.log("Music started automatically!");
+                // Если музыка пошла, удаляем слушатель кликов, он больше не нужен
+                document.body.removeEventListener('click', startMusic);
+                document.body.removeEventListener('touchstart', startMusic);
+            }).catch(error => {
+                console.log("Autoplay blocked. Waiting for interaction.");
+                // Если автозапуск заблокирован, музыка включится при следующем клике
+            });
+        }
+    }
+}
+
 // --- ЗАПУСК ---
 window.onload = () => {
     let progress = 0;
     const bar = document.getElementById('progress-fill');
     
-    // Анимация загрузки
+    // Глобальные слушатели на ЛЮБОЕ касание экрана (на случай если автозапуск не сработал)
+    document.body.addEventListener('click', startMusic, { once: true });
+    document.body.addEventListener('touchstart', startMusic, { once: true });
+
     const loadInterval = setInterval(() => {
         progress += Math.random() * 15;
         if(progress > 100) progress = 100;
@@ -14,21 +69,21 @@ window.onload = () => {
         if(progress === 100) {
             clearInterval(loadInterval);
             
-            // Запускаем синхронизацию перед скрытием лоадера
             sync().then(() => {
+                // ПЫТАЕМСЯ ЗАПУСТИТЬ МУЗЫКУ СРАЗУ ПОСЛЕ ЗАГРУЗКИ
+                startMusic(); 
+
                 setTimeout(() => {
                     document.getElementById('loader').style.opacity = '0';
                     setTimeout(() => {
                         document.getElementById('loader').style.display = 'none';
                         
-                        // ПРОВЕРКА: Первый ли это запуск?
                         if (state.first_run) {
                             showIntro();
                         }
                     }, 500);
                 }, 600);
                 
-                // Дальше синхронизируем постоянно
                 setInterval(sync, 500);
             });
         }
@@ -37,6 +92,8 @@ window.onload = () => {
 
 // --- КЛИКЕР ---
 document.getElementById('hero').addEventListener('click', (e) => {
+    playSound('click'); // Звук клика
+
     let mult = 1;
     if(state.boosters) {
         Object.values(state.boosters).forEach(b => { if(b.is_active) mult *= b.multiplier; });
@@ -55,11 +112,10 @@ document.getElementById('hero').addEventListener('click', (e) => {
 function createParticle(x, y, amount) {
     const wrap = document.createElement('div');
     wrap.className = 'particle-wrapper';
-    
     const text = "+" + formatScore(amount);
-    
     wrap.innerHTML = `<img src="/static/bolt.png" style="width:25px"><span class="particle-text">${text}</span>`;
     
+    // Рандом позиция
     const rx = (Math.random() - 0.5) * 60;
     const ry = (Math.random() - 0.5) * 60;
     
@@ -131,7 +187,6 @@ function renderList(id, itemsObj, type) {
                 } else {
                     btn.disabled = !canBuy;
                     btn.innerText = `${formatNumber(item.cost)} 🔩`;
-                    
                     const info = div.querySelector('.card-info p');
                     if(type === 'worker') info.innerText = `В штате: ${item.count} | +${formatNumber(item.cps)}/сек`;
                     if(type === 'upgrade') info.innerText = `Ур. ${item.lvl} | Сила: +${formatNumber(item.bonus)}`;
@@ -163,10 +218,20 @@ function buy(cat, id) {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ category: cat, id: id })
-    }).then(sync);
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            if (cat === 'booster') {
+                playSound('booster');
+            } else {
+                playSound('buy');
+            }
+            sync();
+        }
+    });
 }
 
-// --- УПРАВЛЕНИЕ ОКНАМИ ---
 function openPanel(id) {
     closeAllPanels();
     document.getElementById(`panel-${id}`).classList.add('open');
@@ -182,10 +247,11 @@ function showIntro() {
     setTimeout(() => { modal.classList.add('visible'); }, 10);
 }
 
+// При нажатии кнопки "Понятно" музыка точно запустится, так как это клик
 function closeIntro() {
+    startMusic(); // ГАРАНТИРОВАННЫЙ ЗАПУСК
     const modal = document.getElementById('intro-modal');
     modal.classList.remove('visible');
-    
     setTimeout(() => {
         modal.classList.add('hidden');
         fetch('/api/close_intro', { method: 'POST' });
@@ -193,7 +259,6 @@ function closeIntro() {
     }, 300);
 }
 
-// --- ФОРМАТИРОВАНИЕ ЧИСЕЛ ---
 function formatScore(num) {
     let floored = Math.floor(num);
     if (floored >= 1000000) return (floored / 1000000).toFixed(2) + "M";
