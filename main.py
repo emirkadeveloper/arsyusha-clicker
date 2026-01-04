@@ -2,34 +2,31 @@ import threading
 import time
 import json
 import os
+import sys
 import webview
 from flask import Flask, render_template, jsonify, request
+
+# Путь к сохранению
+def get_save_path():
+    if 'ANDROID_ARGUMENT' in os.environ:
+        from android.storage import app_storage_path
+        return os.path.join(app_storage_path(), 'save.json')
+    return 'save.json'
+
+SAVE_FILE = get_save_path()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# --- ОПРЕДЕЛЕНИЕ ПУТИ ДЛЯ СОХРАНЕНИЯ (КРИТИЧНО ДЛЯ ANDROID) ---
-def get_save_path():
-    # Проверяем, запущены ли мы на Android
-    if 'ANDROID_ARGUMENT' in os.environ:
-        from android.storage import app_storage_path
-        # Возвращаем путь к внутренней памяти приложения
-        return os.path.join(app_storage_path(), 'save.json')
-    else:
-        # Для ПК
-        return 'save.json'
-
-SAVE_FILE = get_save_path()
-
-# --- ГЕНЕРАЦИЯ КОНТЕНТА ---
+# --- ГЕНЕРАТОР КОНТЕНТА ---
 def generate_default_state():
     workers = {}
     upgrades = {}
     boosters = {}
 
-    # 1. Работники
+    # Работники
     worker_names = [
         "Муравей-грузчик", "Таракан-стажер", "Хомяк в колесе", "Кот-лапкой-тык", "Школьник",
         "Студент", "Дворник", "Офисный планктон", "Менеджер", "Директор",
@@ -42,51 +39,31 @@ def generate_default_state():
         "Архитектор", "Агент Смит", "Нео", "Тринити", "Морфеус",
         "Оракул", "Зион", "Реальность", "Абсолют", "THE END"
     ]
-    
     base_cost = 15
     base_cps = 0.5
-    
     for i in range(50):
         w_id = f"worker_{i}"
         cost = int(base_cost * (1.55 ** i))
         cps = round(base_cps * (1.45 ** i), 1)
         workers[w_id] = {"id": w_id, "name": worker_names[i], "cost": cost, "cps": cps, "count": 0, "order": i}
 
-    # 2. Улучшения (Строгое возрастание силы)
-    items_data = [
-        ("Мышка", "F"), ("Палец", "M"), ("Перчатка", "F"), ("Молот", "M"), ("Усилитель", "M"),
-        ("Чип", "M"), ("Кабель", "M"), ("Сервер", "M"), ("Квант", "M"), ("Бог", "M")
-    ]
-
-    materials_data = [
-        ("Деревянный", "Деревянная"), ("Медный", "Медная"), ("Железный", "Железная"),
-        ("Золотой", "Золотая"), ("Алмазный", "Алмазная"), ("Изумрудный", "Изумрудная"),
-        ("Плазменный", "Плазменная"), ("Космический", "Космическая"), ("Божественный", "Божественная"),
-        ("Омега", "Омега")
-    ]
-    
+    # Улучшения
+    items_data = [("Мышка", "F"), ("Палец", "M"), ("Перчатка", "F"), ("Молот", "M"), ("Усилитель", "M"), ("Чип", "M"), ("Кабель", "M"), ("Сервер", "M"), ("Квант", "M"), ("Бог", "M")]
+    materials_data = [("Деревянный", "Деревянная"), ("Медный", "Медная"), ("Железный", "Железная"), ("Золотой", "Золотая"), ("Алмазный", "Алмазная"), ("Изумрудный", "Изумрудная"), ("Плазменный", "Плазменная"), ("Космический", "Космическая"), ("Божественный", "Божественная"), ("Омега", "Омега")]
     count = 0
     current_bonus = 1
     current_cost = 50
-
     for mat_m, mat_f in materials_data:
         for item_name, gender in items_data:
             u_id = f"upgrade_{count}"
-            
             adjective = mat_f if gender == 'F' else mat_m
             full_name = f"{adjective} {item_name}"
-            
-            upgrades[u_id] = {
-                "id": u_id, "name": full_name, "cost": current_cost, 
-                "bonus": current_bonus, "lvl": 0, "order": count
-            }
-            
-            # Следующий предмет всегда сильнее и дороже предыдущего
+            upgrades[u_id] = {"id": u_id, "name": full_name, "cost": current_cost, "bonus": current_bonus, "lvl": 0, "order": count}
             current_bonus = int(current_bonus * 1.25) + 1
             current_cost = int(current_cost * 1.40)
             count += 1
 
-    # 3. Бустеры
+    # Бустеры
     booster_types = [
         {"name": "Кофе-брейк", "mult": 2, "dur": 30, "cost": 500},
         {"name": "Энергетик", "mult": 3, "dur": 25, "cost": 2500},
@@ -101,86 +78,60 @@ def generate_default_state():
     ]
     for i, b in enumerate(booster_types):
         b_id = f"booster_{i}"
-        boosters[b_id] = {
-            "id": b_id, "name": b["name"], "cost": b["cost"], 
-            "multiplier": b["mult"], "duration": b["dur"], 
-            "active_until": 0, "order": i
-        }
+        boosters[b_id] = {"id": b_id, "name": b["name"], "cost": b["cost"], "multiplier": b["mult"], "duration": b["dur"], "active_until": 0, "order": i}
 
-    return {
-        "bolts": 0, "click_power": 1, "auto_income": 0, 
-        "workers": workers, "upgrades": upgrades, "boosters": boosters,
-        "first_run": True # Флаг первого запуска
-    }
+    return {"bolts": 0, "click_power": 1, "auto_income": 0, "workers": workers, "upgrades": upgrades, "boosters": boosters, "first_run": True}
 
-# Глобальная переменная
 game_state = generate_default_state()
 
-# --- СОХРАНЕНИЕ / ЗАГРУЗКА ---
+# Сохранение/Загрузка
 def save_game():
     try:
         with open(SAVE_FILE, 'w', encoding='utf-8') as f:
             json.dump(game_state, f, indent=4, ensure_ascii=False)
-    except Exception as e:
-        print(f"Save error: {e}")
+    except: pass
 
 def load_game():
     global game_state
-    if not os.path.exists(SAVE_FILE):
-        return
-
+    if not os.path.exists(SAVE_FILE): return
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
             saved_data = json.load(f)
-            
         game_state['bolts'] = saved_data.get('bolts', 0)
         game_state['click_power'] = saved_data.get('click_power', 1)
-        # Если ключа нет, ставим False (чтобы не спамить старым игрокам, если они есть)
         game_state['first_run'] = saved_data.get('first_run', True)
-
         for key, w in game_state['workers'].items():
             if key in saved_data.get('workers', {}):
                 w['count'] = saved_data['workers'][key]['count']
                 w['cost'] = saved_data['workers'][key]['cost']
-
         for key, u in game_state['upgrades'].items():
             if key in saved_data.get('upgrades', {}):
                 u['lvl'] = saved_data['upgrades'][key]['lvl']
                 u['cost'] = saved_data['upgrades'][key]['cost']
-                
-    except Exception as e:
-        print(f"Load error: {e}")
+    except: pass
 
 load_game()
 
-# --- ЭКОНОМИКА ---
+# Экономика
 def auto_farm_loop():
     last_save = time.time()
     while True:
         base_income = sum(w['cps'] * w['count'] for w in game_state['workers'].values())
-        
         curr_time = time.time()
         mult = 1
         for b in game_state['boosters'].values():
-            if b['active_until'] > curr_time:
-                mult *= b['multiplier']
-        
+            if b['active_until'] > curr_time: mult *= b['multiplier']
         income = base_income * mult
         game_state['auto_income'] = income
-        
-        if income > 0:
-            game_state['bolts'] += income / 10
-        
+        if income > 0: game_state['bolts'] += income / 10
         if time.time() - last_save > 10:
             save_game()
             last_save = time.time()
-
         time.sleep(0.1)
 
-# --- API ---
+# Routes
 @app.route('/')
-def index():
-    return render_template('index.html')
+def index(): return render_template('index.html')
 
 @app.route('/api/sync')
 def sync():
@@ -195,9 +146,7 @@ def click():
     curr_time = time.time()
     mult = 1
     for b in game_state['boosters'].values():
-        if b['active_until'] > curr_time:
-            mult *= b['multiplier']
-    
+        if b['active_until'] > curr_time: mult *= b['multiplier']
     income = game_state['click_power'] * mult
     game_state['bolts'] += income
     return jsonify({"bolts": game_state['bolts']})
@@ -207,7 +156,6 @@ def buy():
     data = request.json
     cat = data.get('category')
     item_id = data.get('id')
-    
     if cat == 'worker':
         item = game_state['workers'][item_id]
         if game_state['bolts'] >= item['cost']:
@@ -216,7 +164,6 @@ def buy():
             item['cost'] = int(item['cost'] * 1.25)
             save_game()
             return jsonify({"success": True})
-
     elif cat == 'upgrade':
         item = game_state['upgrades'][item_id]
         if game_state['bolts'] >= item['cost']:
@@ -226,7 +173,6 @@ def buy():
             game_state['click_power'] += item['bonus']
             save_game()
             return jsonify({"success": True})
-
     elif cat == 'booster':
         item = game_state['boosters'][item_id]
         is_active = item['active_until'] > time.time()
@@ -235,7 +181,6 @@ def buy():
             item['active_until'] = time.time() + item['duration']
             save_game()
             return jsonify({"success": True})
-
     return jsonify({"success": False})
 
 @app.route('/api/close_intro', methods=['POST'])
@@ -244,14 +189,24 @@ def close_intro():
     save_game()
     return jsonify({"success": True})
 
+# --- ИСПРАВЛЕННЫЙ ЗАПУСК ---
 if __name__ == '__main__':
+    # 1. Запуск экономики
     t_farm = threading.Thread(target=auto_farm_loop, daemon=True)
     t_farm.start()
     
-    t_flask = threading.Thread(target=lambda: app.run(host='127.0.0.1', port=5000, threaded=True, use_reloader=False), daemon=True)
+    # 2. Запуск Flask на 0.0.0.0 (Важно для Android)
+    t_flask = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
+    
+    # 3. Даем серверу проснуться
     time.sleep(2)
     
-    webview.create_window("Арсюша Кликер", "http://127.0.0.1:5000", width=420, height=840, resizable=False, background_color='#00C6FF')
-
-    webview.start()
+    # 4. Запуск WebView БЕЗ лишних параметров, которые крашат Android
+    # Убрали width, height и resizable.
+    try:
+        webview.create_window("Arsyusha Tycoon", "http://127.0.0.1:5000", background_color='#00C6FF')
+        webview.start()
+    except Exception as e:
+        # Этот блок спасет от мгновенного краша, если Webview не инициализируется
+        print(f"CRASH AVOIDED: {e}")
