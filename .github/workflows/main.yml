@@ -13,7 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Чистим диск
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -21,14 +20,12 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # Ставим Java 17
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Ставим системные зависимости
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -37,7 +34,6 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # Фикс сети для Ant
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
@@ -45,15 +41,12 @@ jobs:
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
-      # Ставим Buildozer
       - name: Install Buildozer
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
           pip3 install --user "cython<3.0.0"
 
-      # --- МАГИЯ: ГЕНЕРИРУЕМ ПРАВИЛЬНЫЙ BUILDOZER.SPEC С НУЛЯ ---
-      # Это гарантирует, что иконка и настройки применятся
       - name: Create buildozer.spec
         run: |
           cat <<EOT > buildozer.spec
@@ -61,48 +54,38 @@ jobs:
           title = Arsyusha Clicker
           package.name = arsyusha
           package.domain = org.arsyusha
-          
-          # Указываем ВСЕ расширения файлов
-          source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
-          
-          # Папка с исходниками (текущая)
           source.dir = .
-          
-          # Версия
+          source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # ТРЕБОВАНИЯ (Добавил sqlite3, openssl, libffi - чтобы не вылетало)
-          requirements = python3,flask,pywebview,android,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi
+          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 1: Вернули kivy и pyjnius (нужны для старта)
+          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 2: Добавили certifi и chardet (нужны для Flask)
+          requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests
           
-          # ИКОНКА И ЗАСТАВКА
+          # Иконка
           icon.filename = icon.png
           presplash.filename = icon.png
           
-          # Ориентация
           orientation = portrait
           fullscreen = 1
-          
-          # ЦВЕТ ЗАСТАВКИ (Голубой, как в игре)
           android.presplash_color = #00C6FF
           
-          # API Android
+          # API
           android.api = 33
           android.minapi = 21
           
-          # РАЗРЕШЕНИЯ (Важно для сети и файлов)
+          # Разрешения
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
           
-          # ФИКС БЕЛОГО ЭКРАНА (Разрешаем HTTP)
+          # Разрешаем HTTP
           android.manifest.application_attributes = android:usesCleartextTraffic="true"
           
-          # Архитектуры
+          # ГЛАВНОЕ ИСПРАВЛЕНИЕ 3: Включаем AndroidX и Webkit (нужно для WebView)
+          android.enable_androidx = True
+          android.gradle_dependencies = androidx.webkit:webkit:1.4.0
+          
           android.archs = arm64-v8a, armeabi-v7a
-          
-          # Разрешаем бэкап
           android.allow_backup = True
-          
-          # Kivy настройки (скрываем лишнее)
-          p4a.branch = master
           
           [buildozer]
           log_level = 2
@@ -111,11 +94,10 @@ jobs:
 
       - name: Build APK
         run: |
-          # Авто-принятие лицензий через yes
           yes | /home/runner/.local/bin/buildozer android debug
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-APK-Fixed
+          name: Arsyusha-Final-APK
           path: bin/*.apk
