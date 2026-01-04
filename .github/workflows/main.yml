@@ -34,11 +34,13 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      # Качаем Ant с надежного зеркала
+      # --- ИСПРАВЛЕНИЕ: Качаем с официального архива с жесткими флагами ---
       - name: Pre-install Apache Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          wget https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
+          # -4 = только IPv4 (решает проблему недоступности сети)
+          # --no-check-certificate = пропускает проверку SSL (иногда она тупит на старых серверах)
+          wget -4 --no-check-certificate --tries=10 --waitretry=10 --timeout=60 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
@@ -59,8 +61,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,mp3
           version = 1.0
           
-          # === ФИНАЛЬНЫЙ СПИСОК ЗАВИСИМОСТЕЙ ===
-          # Добавлены proxy_tools, idna, typing_extensions чтобы исправить краш
+          # ПОЛНЫЙ ПАКЕТ ЗАВИСИМОСТЕЙ ПРОТИВ ВЫЛЕТОВ
           requirements = python3,flask,kivy,pywebview,android,pyjnius,jinja2,werkzeug,markupsafe,itsdangerous,click,sqlite3,openssl,libffi,certifi,chardet,urllib3,requests,idna,typing_extensions,proxy_tools
           
           # Иконка
@@ -75,17 +76,17 @@ jobs:
           android.api = 33
           android.minapi = 21
           
-          # === РАЗРЕШЕНИЯ (Добавлен WAKE_LOCK от вылетов при старте) ===
+          # Разрешения + WAKE_LOCK
           android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE,WAKE_LOCK,FOREGROUND_SERVICE
           
           # Разрешаем HTTP
           android.manifest.application_attributes = android:usesCleartextTraffic="true"
           
-          # AndroidX и Webkit
+          # AndroidX
           android.enable_androidx = True
           android.gradle_dependencies = androidx.webkit:webkit:1.4.0
           
-          # Метаданные для стабильности WebView
+          # Meta data для стабильности
           android.meta_data = android.webkit.WebView.EnableSafeBrowsing=true
           
           android.archs = arm64-v8a, armeabi-v7a
@@ -103,5 +104,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arsyusha-Fix-Crash
+          name: Arsyusha-APK-Final
           path: bin/*.apk
