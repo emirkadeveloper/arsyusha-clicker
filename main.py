@@ -6,27 +6,42 @@ import sys
 import webview
 from flask import Flask, render_template, jsonify, request
 
-# Путь к сохранению
+# --- 1. ПРАВИЛЬНЫЕ ПУТИ ДЛЯ ANDROID (БЕЗ ЭТОГО ВЫЛЕТИТ!) ---
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+elif __file__:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+
+# --- 2. ПУТЬ К СОХРАНЕНИЮ ---
 def get_save_path():
+    # Если мы на Андроиде, используем приватное хранилище
     if 'ANDROID_ARGUMENT' in os.environ:
         from android.storage import app_storage_path
-        return os.path.join(app_storage_path(), 'save.json')
-    return 'save.json'
+        storage = app_storage_path()
+        if not os.path.exists(storage):
+            os.makedirs(storage)
+        return os.path.join(storage, 'save.json')
+    return os.path.join(BASE_DIR, 'save.json')
 
 SAVE_FILE = get_save_path()
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+# Инициализируем Flask с ЯВНЫМИ путями
+app = Flask(__name__, static_folder=STATIC_DIR, template_folder=TEMPLATE_DIR)
+
+# --- ДАЛЬШЕ ТВОЙ КОД ИГРЫ (ОСТАВЛЯЕМ КАК ЕСТЬ) ---
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# --- ГЕНЕРАТОР КОНТЕНТА ---
 def generate_default_state():
     workers = {}
     upgrades = {}
     boosters = {}
-
-    # Работники
     worker_names = [
         "Муравей-грузчик", "Таракан-стажер", "Хомяк в колесе", "Кот-лапкой-тык", "Школьник",
         "Студент", "Дворник", "Офисный планктон", "Менеджер", "Директор",
@@ -47,7 +62,6 @@ def generate_default_state():
         cps = round(base_cps * (1.45 ** i), 1)
         workers[w_id] = {"id": w_id, "name": worker_names[i], "cost": cost, "cps": cps, "count": 0, "order": i}
 
-    # Улучшения
     items_data = [("Мышка", "F"), ("Палец", "M"), ("Перчатка", "F"), ("Молот", "M"), ("Усилитель", "M"), ("Чип", "M"), ("Кабель", "M"), ("Сервер", "M"), ("Квант", "M"), ("Бог", "M")]
     materials_data = [("Деревянный", "Деревянная"), ("Медный", "Медная"), ("Железный", "Железная"), ("Золотой", "Золотая"), ("Алмазный", "Алмазная"), ("Изумрудный", "Изумрудная"), ("Плазменный", "Плазменная"), ("Космический", "Космическая"), ("Божественный", "Божественная"), ("Омега", "Омега")]
     count = 0
@@ -63,7 +77,6 @@ def generate_default_state():
             current_cost = int(current_cost * 1.40)
             count += 1
 
-    # Бустеры
     booster_types = [
         {"name": "Кофе-брейк", "mult": 2, "dur": 30, "cost": 500},
         {"name": "Энергетик", "mult": 3, "dur": 25, "cost": 2500},
@@ -84,7 +97,6 @@ def generate_default_state():
 
 game_state = generate_default_state()
 
-# Сохранение/Загрузка
 def save_game():
     try:
         with open(SAVE_FILE, 'w', encoding='utf-8') as f:
@@ -112,7 +124,6 @@ def load_game():
 
 load_game()
 
-# Экономика
 def auto_farm_loop():
     last_save = time.time()
     while True:
@@ -129,7 +140,6 @@ def auto_farm_loop():
             last_save = time.time()
         time.sleep(0.1)
 
-# Routes
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -189,24 +199,22 @@ def close_intro():
     save_game()
     return jsonify({"success": True})
 
-# --- ИСПРАВЛЕННЫЙ ЗАПУСК ---
+# --- ЗАПУСК ---
 if __name__ == '__main__':
-    # 1. Запуск экономики
     t_farm = threading.Thread(target=auto_farm_loop, daemon=True)
     t_farm.start()
     
-    # 2. Запуск Flask на 0.0.0.0 (Важно для Android)
+    # Запускаем Flask на 0.0.0.0
     t_flask = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
     
-    # 3. Даем серверу проснуться
-    time.sleep(2)
+    # Ждем 3 секунды, чтобы Flask точно запустился перед WebView
+    time.sleep(3)
     
-    # 4. Запуск WebView БЕЗ лишних параметров, которые крашат Android
-    # Убрали width, height и resizable.
     try:
+        # Убраны параметры размера, чтобы не смущать Android
         webview.create_window("Arsyusha Tycoon", "http://127.0.0.1:5000", background_color='#00C6FF')
         webview.start()
     except Exception as e:
-        # Этот блок спасет от мгновенного краша, если Webview не инициализируется
-        print(f"CRASH AVOIDED: {e}")
+        # Если Webview упадет, мы хотя бы увидим это в логах, а не просто краш
+        print(f"WEBVIEW CRASHED: {e}")
