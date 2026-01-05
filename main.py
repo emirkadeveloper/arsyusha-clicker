@@ -1,11 +1,9 @@
 import threading
-import json
 import os
 import sys
 import webview
 from flask import Flask, render_template, jsonify, request
 
-# --- ПУТИ (КРИТИЧНО) ---
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 elif __file__:
@@ -13,8 +11,8 @@ elif __file__:
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 
-TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 def get_save_path():
     if 'ANDROID_ARGUMENT' in os.environ:
@@ -26,19 +24,17 @@ def get_save_path():
     return os.path.join(BASE_DIR, 'save.json')
 
 SAVE_FILE = get_save_path()
-
 app = Flask(__name__, static_folder=STATIC_DIR, template_folder=TEMPLATE_DIR)
 
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# --- ГЕНЕРАЦИЯ ---
 def generate_default_state():
     workers = {}
     upgrades = {}
     boosters = {}
-    worker_names = ["Муравей", "Таракан", "Хомяк", "Кот", "Школьник", "Студент", "Дворник", "Менеджер", "Директор", "Депутат", "Мэр", "Президент", "Илон Маск", "Скайнет", "Ботнет", "Серверная", "Дата-центр", "Крипто-ферма", "АЭС", "Ветряк", "Дамба", "Вулкан", "Тектоника", "Ядро", "Луна-парк", "Марсоход", "Сфера Дайсона", "Звезда Смерти", "Черная дыра", "Квазар", "Галактика", "Скопление", "Вселенная", "Мультивселенная", "Бог", "Кодер", "Баг", "Глитч", "Матрица", "Архитектор", "Агент", "Нео", "Тринити", "Морфеус", "Оракул", "Зион", "Реальность", "Абсолют", "THE END", "FINAL"]
+    worker_names = ["Муравей", "Таракан", "Хомяк", "Кот", "Школьник", "Студент", "Дворник", "Менеджер", "Директор", "Депутат", "Мэр", "Президент", "Илон Маск", "Скайнет", "Ботнет", "Серверная", "Дата-центр", "Крипто-ферма", "АЭС", "Ветряк", "Дамба", "Вулкан", "Тектоника", "Ядро", "Луна", "Марсоход", "Сфера", "Звезда", "Дыра", "Квазар", "Галактика", "Скопление", "Вселенная", "Мультивселенная", "Бог", "Кодер", "Баг", "Глитч", "Матрица", "Архитектор", "Агент", "Нео", "Тринити", "Морфеус", "Оракул", "Зион", "Реальность", "Абсолют", "THE END", "FINAL"]
     base_cost = 15
     base_cps = 0.5
     for i in range(50):
@@ -173,17 +169,12 @@ def close_intro():
     save_game()
     return jsonify({"success": True})
 
-# --- ЗАПУСК БЕЗ ЗАДЕРЖКИ (ФИКС ВЫЛЕТА) ---
 if __name__ == '__main__':
     t_farm = threading.Thread(target=auto_farm_loop, daemon=True)
     t_farm.start()
-    
     t_flask = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, threaded=True, use_reloader=False), daemon=True)
     t_flask.start()
-    
-    # НИКАКОГО time.sleep()! Это вешает Android.
     try:
         webview.create_window("Arsyusha Tycoon", "http://127.0.0.1:5000", background_color='#00C6FF')
         webview.start()
-    except Exception as e:
-        print(e)
+    except: pass
