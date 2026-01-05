@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Arsyusha Tycoon</title>
     <link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Убрали url_for, теперь просто путь -->
+    <link rel="stylesheet" href="../static/style.css">
 </head>
 <body>
 
-    <!-- ЗАГРУЗОЧНЫЙ ЭКРАН -->
+    <!-- ЗАГРУЗКА -->
     <div id="loader">
         <div class="loader-content">
             <div class="loader-logo-wrapper">
-                <img src="/static/arsyusha.png" class="loader-img">
+                <img src="../static/arsyusha.png" class="loader-img">
             </div>
             <h1>Арсюша Кликер</h1>
             <div class="progress-bar-bg">
@@ -23,23 +24,21 @@
         </div>
     </div>
 
-    <!-- ОКНО ПЕРВОГО ЗАПУСКА (ПРОТОТИП) -->
+    <!-- ИНТРО -->
     <div id="intro-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-icon">⚠️</div>
             <h2>Прототип</h2>
             <p>Это ранняя версия игры <b>"Арсюша Кликер"</b>.</p>
-            <p style="font-size: 0.9rem; opacity: 0.8;">Возможны баги, недочёты и нарушение законов физики. Мы работаем над этим!</p>
-            <button class="btn-buy" style="width: 100%; margin-top: 20px; font-size: 1.2rem; cursor: pointer;" onclick="closeIntro()">Понятно</button>
+            <button class="btn-buy" style="width: 100%; margin-top: 20px;" onclick="closeIntro()">Понятно</button>
         </div>
     </div>
 
-    <!-- ИГРА -->
     <div class="sunburst"></div>
 
     <div class="top-hud">
         <div class="currency-pill">
-            <img src="/static/bolt.png" class="hud-icon">
+            <img src="../static/bolt.png" class="hud-icon">
             <span id="score">0</span>
         </div>
         <div class="sub-stats">
@@ -48,11 +47,10 @@
         <div id="active-boosters-list"></div>
     </div>
 
-    <!-- Игровая зона -->
     <div class="game-stage">
         <div class="hero-wrapper">
             <div class="glow-bg"></div>
-            <img src="/static/arsyusha.png" id="hero" class="hero idle-anim">
+            <img src="../static/arsyusha.png" id="hero" class="hero idle-anim">
         </div>
     </div>
 
@@ -71,7 +69,7 @@
         </div>
     </div>
 
-    <!-- Панели -->
+    <!-- ПАНЕЛИ -->
     <div id="panel-upgrades" class="panel">
         <div class="panel-header">
             <h2>Улучшения</h2>
@@ -96,6 +94,6 @@
         <div class="list" id="list-boosters"></div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="../static/script.js"></script>
 </body>
 </html>
