@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Arsyusha Tycoon</title>
+    <link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+    <!-- Убрали url_for, теперь просто путь -->
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+    <!-- ЗАГРУЗКА -->
+    <div id="loader">
+        <div class="loader-content">
+            <div class="loader-logo-wrapper">
+                <img src="static/arsyusha.png" class="loader-img">
+            </div>
+            <h1>Арсюша Кликер</h1>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+            <p class="loading-text">Загрузка<span class="dots"></span></p>
+        </div>
+    </div>
+
+    <!-- ИНТРО -->
+    <div id="intro-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-icon">⚠️</div>
+            <h2>Прототип</h2>
+            <p>Это ранняя версия игры <b>"Арсюша Кликер"</b>.</p>
+            <button class="btn-buy" style="width: 100%; margin-top: 20px;" onclick="closeIntro()">Понятно</button>
+        </div>
+    </div>
+
+    <div class="sunburst"></div>
+
+    <div class="top-hud">
+        <div class="currency-pill">
+            <img src="static/bolt.png" class="hud-icon">
+            <span id="score">0</span>
+        </div>
+        <div class="sub-stats">
+            <span>⚡ <span id="cps">0</span>/сек</span>
+        </div>
+        <div id="active-boosters-list"></div>
+    </div>
+
+    <div class="game-stage">
+        <div class="hero-wrapper">
+            <div class="glow-bg"></div>
+            <img src="static/arsyusha.png" id="hero" class="hero idle-anim">
+        </div>
+    </div>
+
+    <div class="bottom-dock">
+        <div class="dock-item" onclick="openPanel('upgrades')">
+            <div class="icon">🛠</div>
+            <span>Апгрейды</span>
+        </div>
+        <div class="dock-item" onclick="openPanel('workers')">
+            <div class="icon">🏭</div>
+            <span>Персонал</span>
+        </div>
+        <div class="dock-item" onclick="openPanel('boosters')">
+            <div class="icon">🚀</div>
+            <span>Бустеры</span>
+        </div>
+    </div>
+
+    <!-- ПАНЕЛИ -->
+    <div id="panel-upgrades" class="panel">
+        <div class="panel-header">
+            <h2>Улучшения</h2>
+            <div class="close-btn" onclick="closeAllPanels()">✕</div>
+        </div>
+        <div class="list" id="list-upgrades"></div>
+    </div>
+
+    <div id="panel-workers" class="panel">
+        <div class="panel-header">
+            <h2>Персонал</h2>
+            <div class="close-btn" onclick="closeAllPanels()">✕</div>
+        </div>
+        <div class="list" id="list-workers"></div>
+    </div>
+
+    <div id="panel-boosters" class="panel">
+        <div class="panel-header">
+            <h2>Магазин Бустеров</h2>
+            <div class="close-btn" onclick="closeAllPanels()">✕</div>
+        </div>
+        <div class="list" id="list-boosters"></div>
+    </div>
+
+    <script src="static/script.js"></script>
+</body>
+</html>
