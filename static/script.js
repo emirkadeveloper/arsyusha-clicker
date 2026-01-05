@@ -1,4 +1,4 @@
-// --- КОНФИГУРАЦИЯ И ДАННЫЕ (Как было в Python) ---
+// --- ДАННЫЕ ИГРЫ ---
 const workerNames = ["Муравей", "Таракан", "Хомяк", "Кот", "Школьник", "Студент", "Дворник", "Менеджер", "Директор", "Депутат", "Мэр", "Президент", "Илон Маск", "Скайнет", "Ботнет", "Серверная", "Дата-центр", "Крипто-ферма", "АЭС", "Ветряк", "Дамба", "Вулкан", "Тектоника", "Ядро", "Луна", "Марсоход", "Сфера", "Звезда", "Дыра", "Квазар", "Галактика", "Скопление", "Вселенная", "Мультивселенная", "Бог", "Кодер", "Баг", "Глитч", "Матрица", "Архитектор", "Агент", "Нео", "Тринити", "Морфеус", "Оракул", "Зион", "Реальность", "Абсолют", "THE END"];
 const itemNouns = [["Мышка", "F"], ["Палец", "M"], ["Перчатка", "F"], ["Молот", "M"], ["Усилитель", "M"], ["Чип", "M"], ["Кабель", "M"], ["Сервер", "M"], ["Квант", "M"], ["Бог", "M"]];
 const materials = [["Деревянный", "Деревянная"], ["Медный", "Медная"], ["Железный", "Железная"], ["Золотой", "Золотая"], ["Алмазный", "Алмазная"], ["Изумрудный", "Изумрудная"], ["Плазменный", "Плазменная"], ["Космический", "Космическая"], ["Божественный", "Божественная"], ["Омега", "Омега"]];
@@ -15,10 +15,10 @@ const boosterTypes = [
     {id: "b9", name: "BIG BANG", mult: 1000, dur: 5, cost: 1000000000}
 ];
 
-// --- ГЕНЕРАЦИЯ СОСТОЯНИЯ ---
+// Глобальное состояние
 let state = {
     bolts: 0,
-    click_power: 1,
+    click_power: 1, // Пересчитывается при загрузке
     auto_income: 0,
     first_run: true,
     workers: {},
@@ -26,7 +26,8 @@ let state = {
     boosters: {}
 };
 
-function initGame() {
+// --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ (Пустая игра) ---
+function initGameData() {
     // 1. Работники
     let baseCost = 15;
     let baseCps = 0.5;
@@ -56,45 +57,95 @@ function initGame() {
     });
 }
 
-// --- СОХРАНЕНИЕ (LocalStorage) ---
+// --- СИСТЕМА СОХРАНЕНИЯ (LocalStorage) ---
+const SAVE_KEY = 'arsyusha_tycoon_v1';
+
 function saveGame() {
-    localStorage.setItem('arsyusha_save', JSON.stringify(state));
+    try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.error("Save failed", e);
+    }
 }
 
 function loadGame() {
-    initGame(); // Создаем структуру
-    const saved = localStorage.getItem('arsyusha_save');
-    if (saved) {
-        const parsed = JSON.parse(saved);
-        // Восстанавливаем значения
-        state.bolts = parsed.bolts || 0;
-        state.click_power = parsed.click_power || 1;
-        state.first_run = parsed.first_run ?? true;
-        
-        // Восстанавливаем покупки (слияние)
-        for(let k in parsed.workers) if(state.workers[k]) {
-            state.workers[k].count = parsed.workers[k].count;
-            state.workers[k].cost = parsed.workers[k].cost;
-        }
-        for(let k in parsed.upgrades) if(state.upgrades[k]) {
-            state.upgrades[k].lvl = parsed.upgrades[k].lvl;
-            state.upgrades[k].cost = parsed.upgrades[k].cost;
-            // Пересчет силы клика на всякий случай
-            if(parsed.upgrades[k].lvl > 0) state.click_power += parsed.upgrades[k].bonus;
+    initGameData(); // Сначала создаем структуру по умолчанию
+    
+    const savedJSON = localStorage.getItem(SAVE_KEY);
+    if (savedJSON) {
+        try {
+            const savedState = JSON.parse(savedJSON);
+            
+            // Восстанавливаем базовые значения
+            state.bolts = savedState.bolts || 0;
+            state.first_run = (savedState.first_run !== undefined) ? savedState.first_run : true;
+
+            // Восстанавливаем Работников (Count и Cost)
+            for (let id in savedState.workers) {
+                if (state.workers[id]) {
+                    state.workers[id].count = savedState.workers[id].count;
+                    state.workers[id].cost = savedState.workers[id].cost;
+                }
+            }
+
+            // Восстанавливаем Апгрейды (Level и Cost)
+            for (let id in savedState.upgrades) {
+                if (state.upgrades[id]) {
+                    state.upgrades[id].lvl = savedState.upgrades[id].lvl;
+                    state.upgrades[id].cost = savedState.upgrades[id].cost;
+                }
+            }
+            
+            // Восстанавливаем Бустеры (Время действия)
+            // При загрузке проверяем, не истек ли бустер пока игра была закрыта
+            // (можно сделать сложнее и начислить оффлайн доход, но пока просто сохраним время)
+            // let now = Date.now() / 1000;
+            // for (let id in savedState.boosters) {
+            //     if (state.boosters[id]) {
+            //         state.boosters[id].active_until = savedState.boosters[id].active_until;
+            //     }
+            // }
+
+            // ПЕРЕСЧЕТ СТАТИСТИКИ (Чтобы не было багов с силой клика)
+            recalcStats();
+
+        } catch (e) {
+            console.error("Load failed, reset to default", e);
         }
     }
 }
 
+// Пересчитываем силу клика на основе купленных апгрейдов
+function recalcStats() {
+    let power = 1; // Базовая сила
+    for (let id in state.upgrades) {
+        let u = state.upgrades[id];
+        if (u.lvl > 0) {
+            // Если апгрейд куплен, добавляем его бонус столько раз, какой у него уровень
+            power += (u.bonus * u.lvl);
+        }
+    }
+    state.click_power = power;
+}
+
 // --- АУДИО ---
 const audio = {
-    click: new Audio('../static/click.mp3'),
-    buy: new Audio('../static/buy.mp3'),
-    booster: new Audio('../static/booster.mp3'),
-    music: new Audio('../static/music.mp3')
+    click: new Audio('static/click.mp3'),
+    buy: new Audio('static/buy.mp3'),
+    booster: new Audio('static/booster.mp3'),
+    music: new Audio('static/music.mp3')
 };
+
 for(let k in audio) { 
     audio[k].volume = k==='music'?0.2:0.5; 
-    if(k==='music') audio[k].loop=true; 
+    if(k==='music') audio[k].loop=true;
+    audio[k].load();
+}
+
+function tryPlayMusic() {
+    if(audio.music && audio.music.paused) {
+        audio.music.play().catch(()=>{});
+    }
 }
 
 function playSound(name) {
@@ -104,48 +155,82 @@ function playSound(name) {
         c.play().catch(()=>{});
     }
 }
-function startMusic() {
-    if(audio.music && audio.music.paused) audio.music.play().catch(()=>{});
-}
 
-// --- ЛОГИКА ИГРЫ ---
-loadGame(); // Загрузка при старте скрипта
+// --- ЗАПУСК ---
+window.onload = () => {
+    loadGame(); // 1. Загрузили сохранение
+    
+    let bar = document.getElementById('progress-fill');
+    let w = 0;
+    
+    // Анимация загрузки
+    let int = setInterval(() => {
+        w += 2; 
+        bar.style.width = w + '%';
+        if(w >= 100) {
+            clearInterval(int);
+            tryPlayMusic();
+            
+            setTimeout(() => {
+                document.getElementById('loader').style.display = 'none';
+                
+                // Если это ПЕРВЫЙ запуск (нет сейва или флаг true)
+                if (state.first_run) {
+                    let m = document.getElementById('intro-modal');
+                    m.classList.remove('hidden');
+                    setTimeout(()=>m.classList.add('visible'), 10);
+                }
+            }, 500);
+        }
+    }, 30);
 
-// Авто-фарм (каждые 100мс)
+    // Запасной старт музыки
+    document.body.addEventListener('click', tryPlayMusic, {once:true});
+    document.body.addEventListener('touchstart', tryPlayMusic, {once:true});
+};
+
+// --- ГЛАВНЫЙ ЦИКЛ (Тик каждые 100мс) ---
 setInterval(() => {
+    // 1. Считаем доход
     let income = 0;
     for(let k in state.workers) income += state.workers[k].count * state.workers[k].cps;
     
-    // Бустеры
-    let mult = 1;
+    // 2. Бустеры
+    let mult = 1; 
     let now = Date.now() / 1000;
-    for(let k in state.boosters) {
-        if(state.boosters[k].active_until > now) mult *= state.boosters[k].mult;
-    }
+    for(let k in state.boosters) if(state.boosters[k].active_until > now) mult *= state.boosters[k].mult;
     
     income *= mult;
     state.auto_income = income;
     
-    if(income > 0) {
-        state.bolts += income / 10;
-    }
+    // 3. Начисляем (разделив на 10, т.к. тик 10 раз в секунду)
+    if(income > 0) state.bolts += income / 10;
     
+    // 4. Обновляем экран
     updateUI();
+    
 }, 100);
 
-// Авто-сохранение (каждые 5 сек)
-setInterval(saveGame, 5000);
+// --- АВТО-СОХРАНЕНИЕ (Каждую 1 секунду) ---
+// Чаще = надежнее. LocalStorage быстрый, это не лагает.
+setInterval(saveGame, 1000);
 
-// --- UI ОБНОВЛЕНИЕ ---
+// Сохранение при закрытии вкладки/сворачивании
+window.addEventListener("beforeunload", saveGame);
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === 'hidden') saveGame();
+});
+
+
+// --- UI ---
 function updateUI() {
     document.getElementById('score').innerText = formatScore(state.bolts);
     document.getElementById('cps').innerText = formatNumber(state.auto_income);
     
     let now = Date.now() / 1000;
-    
-    // Рендер активных бустеров
     const activeList = document.getElementById('active-boosters-list');
     activeList.innerHTML = '';
+    
     for(let k in state.boosters) {
         let b = state.boosters[k];
         if(b.active_until > now) {
@@ -157,18 +242,14 @@ function updateUI() {
         }
     }
     
-    // Обновление кнопок (если открыты панели)
     refreshShop('upgrades');
     refreshShop('workers');
     refreshShop('boosters');
 }
 
-// --- МАГАЗИН (Рендер) ---
-let renderedTabs = {}; 
-
 function refreshShop(type) {
     const list = document.getElementById(`list-${type}`);
-    // Если список пустой, рендерим полностью
+    // Если список пуст - создаем элементы
     if(list.children.length === 0) {
         let items = Object.values(state[type]).sort((a,b) => a.order - b.order);
         items.forEach(item => {
@@ -179,7 +260,7 @@ function refreshShop(type) {
             list.appendChild(el);
         });
     } else {
-        // Иначе обновляем только тексты
+        // Иначе обновляем существующие (текст кнопок и инфо)
         let items = Object.values(state[type]);
         items.forEach(item => {
             let el = document.getElementById(`card-${item.id}`);
@@ -226,36 +307,32 @@ function getCardHTML(item, type) {
     `;
 }
 
-// --- ПОКУПКА ---
+// --- ПОКУПКА (С МГНОВЕННЫМ СОХРАНЕНИЕМ) ---
 window.buyItem = function(type, id) {
     let item = state[type][id];
     if(!item) return;
     
     if(state.bolts >= item.cost) {
-        // Бустеры
         if(type === 'boosters') {
             let now = Date.now() / 1000;
-            if(item.active_until > now) return; // Уже активен
+            if(item.active_until > now) return;
             state.bolts -= item.cost;
             item.active_until = now + item.dur;
             playSound('booster');
-        } 
-        // Работники
-        else if(type === 'workers') {
+        } else if(type === 'workers') {
             state.bolts -= item.cost;
             item.count++;
             item.cost = Math.floor(item.cost * 1.25);
             playSound('buy');
-        }
-        // Улучшения
-        else if(type === 'upgrades') {
+        } else if(type === 'upgrades') {
             state.bolts -= item.cost;
             item.lvl++;
-            state.click_power += item.bonus;
+            state.click_power += item.bonus; // Увеличиваем силу сразу
             item.cost = Math.floor(item.cost * 1.6);
             playSound('buy');
         }
-        saveGame();
+        
+        saveGame(); // СОХРАНЯЕМ СРАЗУ ПОСЛЕ ПОКУПКИ
         updateUI();
     }
 };
@@ -274,21 +351,21 @@ document.getElementById('hero').addEventListener('click', (e) => {
     updateUI();
 });
 
-// --- UI HELPERS ---
 function createParticle(x, y, amount) {
     const el = document.createElement('div');
     el.className = 'particle-wrapper';
-    el.innerHTML = `<img src="../static/bolt.png" style="width:25px"><span class="particle-text">+${formatScore(amount)}</span>`;
+    el.innerHTML = `<img src="static/bolt.png" style="width:25px"><span class="particle-text">+${formatScore(amount)}</span>`;
     el.style.left = x + 'px';
     el.style.top = (y - 80) + 'px';
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 800);
 }
 
+// --- НАВИГАЦИЯ ---
 window.openPanel = function(id) {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
     document.getElementById(`panel-${id}`).classList.add('open');
-    refreshShop(id); // Рендер при открытии
+    refreshShop(id);
 };
 
 window.closeAllPanels = function() {
@@ -296,11 +373,11 @@ window.closeAllPanels = function() {
 };
 
 window.closeIntro = function() {
+    tryPlayMusic();
     document.getElementById('intro-modal').classList.remove('visible');
     setTimeout(() => document.getElementById('intro-modal').style.display='none', 300);
     state.first_run = false;
-    saveGame();
-    startMusic();
+    saveGame(); // Сохраняем, что интро просмотрено
 };
 
 function formatScore(n) {
@@ -309,30 +386,8 @@ function formatScore(n) {
     if(n >= 1000) return (n/1000).toFixed(1) + 'k';
     return n;
 }
+
 function formatNumber(n) {
     if(n < 1000) return (n % 1 === 0) ? n : n.toFixed(1);
     return formatScore(n);
 }
-
-// Запуск загрузки
-window.onload = () => {
-    let bar = document.getElementById('progress-fill');
-    let w = 0;
-    let int = setInterval(() => {
-        w += 5;
-        bar.style.width = w + '%';
-        if(w >= 100) {
-            clearInterval(int);
-            setTimeout(() => {
-                document.getElementById('loader').style.display = 'none';
-                if(state.first_run) {
-                    let m = document.getElementById('intro-modal');
-                    m.classList.remove('hidden');
-                    setTimeout(()=>m.classList.add('visible'), 10);
-                }
-            }, 500);
-        }
-    }, 50);
-    
-    document.body.addEventListener('click', startMusic, {once:true});
-};
