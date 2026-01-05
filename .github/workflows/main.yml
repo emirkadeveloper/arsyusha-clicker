@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Clean Disk
+      - name: Clean
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
@@ -19,25 +19,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install System Deps
+      - name: Deps
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip build-essential git python3 python3-dev zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev gettext autopoint libltdl-dev wget
 
-      - name: Install Ant
+      - name: Ant
         run: |
           mkdir -p ~/.buildozer/android/platform/
-          wget https://repo1.maven.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
+          wget -4 --no-check-certificate --tries=10 --waitretry=10 --timeout=60 https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
           tar -xzf apache-ant-1.9.4-bin.tar.gz
           mv apache-ant-1.9.4 ~/.buildozer/android/platform/
 
-      - name: Install Buildozer
+      - name: Buildozer
         run: |
           pip3 install --upgrade pip
           pip3 install --user --upgrade buildozer
           pip3 install --user "cython<3.0.0"
 
-      - name: Generate Spec
+      - name: Spec
         run: |
           cat <<EOT > buildozer.spec
           [app]
@@ -67,7 +67,7 @@ jobs:
           warn_on_root = 1
           EOT
 
-      - name: Build APK
+      - name: Build
         run: yes | /home/runner/.local/bin/buildozer android debug
 
       - uses: actions/upload-artifact@v4
